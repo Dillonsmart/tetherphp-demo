@@ -1,0 +1,150 @@
+# tetherphp-notes
+
+A notes application built on TetherPHP, made with `composer create-project dillonsmart/tetherphp` and
+`tether make:resource Note --uri=/notes`. It exists to show a real feature — database, forms, validation — end to end.
+
+The framework is **not** in this repository. It is the `dillonsmart/tetherphp-core` Composer package, installed into
+`vendor/dillonsmart/tetherphp-core`. Framework changes belong in that repository, not here.
+
+Keep it small: one feature, done properly, is the point.
+
+## The six core principles
+
+Every design decision answers to these. The full charter lives in the `tetherphp-core` repository
+(`docs/agents/principles.md`); the short form:
+
+1. **Human First** — code should be obvious to a human. No cleverness for cleverness' sake.
+2. **Agent Ready** — everything a human can understand, an agent should be able to understand. Predictable naming,
+   explicit dependencies, consistent structure, machine-readable context.
+3. **Explicit Over Magic** — `Request → Route → Action → Domain → Responder → Response` must be traceable without
+   knowing implicit framework behaviour.
+4. **One Obvious Way** — opinionated, one clear convention rather than five approaches. Adding a second way to do
+   something means removing the first.
+5. **Small & Composable** — the core does less, but does it well. Extra functionality composes in as packages.
+6. **Tools Are Part of the Framework** — the CLI is first-class. A runtime feature is not finished until the tooling
+   can show it.
+
+## Setup
+
+```bash
+cp .env.example .env          # Env::fromFile() throws without it
+composer install
+php -S 127.0.0.1:8000 -t public
+php tether help
+php tether test
+```
+
+The console is first-class: `tether routes`, `tether explain <uri>`, `tether inspect <class>` and `tether context`
+report on the application without changing it, and `tether make:feature|resource|action|domain|responder|command`
+generate into it. `tether help <command>` prints what one takes.
+
+Assets are Tailwind, scanning `app/Views/**/*.php`:
+
+```bash
+npm install
+npx tailwindcss -i ./resources/css/app.css -o ./public/css/app.css --watch
+```
+
+Requires **PHP >= 8.5**.
+
+## Docker
+
+```bash
+docker compose up --build     # http://localhost:8000
+```
+
+`php:8.5-apache`, one container, serving `public/`. Everything above the document root — `.env`, `app/`, `vendor/` —
+stays unreachable over HTTP.
+
+**`public/.htaccess` is load-bearing.** Every request that is not a real file goes to `index.php`; without it a real
+web server 404s every route. PHP's built-in server falls back to `index.php` on its own, which hides the problem
+during local development — so test routing changes against the container or Apache, not only `php -S`.
+
+## Guides
+
+Detailed working knowledge lives in `docs/agents/`. These are plain markdown and tool-agnostic — read the relevant
+one before making changes:
+
+- [`docs/agents/application.md`](docs/agents/application.md) — ADR conventions, routing behaviour, views,
+  environment, assets, and what belongs here versus in the framework package.
+
+## Structure
+
+```
+app/Actions/      Actions\      receive the Request, invoke a Domain, hand off to a Responder
+app/Commands/     Commands\     console commands (created by make:command)
+app/Domains/      Domains\      business logic, no HTTP knowledge
+app/Domains/<Feature>/Results/  the value objects that feature's Domains return — here Collection, Record, Written, Invalid
+app/Domains/Note/Notes.php      every query, handed to the Domains that need it
+database/schema.sql             the schema, applied by php tether db:schema
+app/Responders/   Responders\   turn a result into a response, naming its view variables
+app/Services.php  App\Services  what the application is made of — built in public/index.php, handed to every Action
+app/Views/        Views\        templates, partials, error pages
+public/                         web root: index.php, compiled assets
+routes/web.php                  route definitions
+routes/middleware.php           what every request passes through, outermost first
+storage/                        logs and application storage
+tests/            Tests\       Unit (a Domain alone) and Feature (through the Kernel)
+tether                          console entry point — a shim over vendor/bin/tether
+```
+
+`routes/middleware.php` lists what every request passes through — the skeleton ships `OverridesMethod` and
+`VerifyCsrfToken`, and an API-only application deletes both lines and boots without a session. The framework starts
+no session, checks no token and honours no `_method` field unless asked. `php tether explain <uri>` shows the
+middleware alongside the route it resolves to.
+
+**Building a middleware must have no side effects**, because the console builds the list to report it. `Session`
+starts on first use rather than on construction for this reason.
+
+An Action implements `ActionInterface` and **returns a `Response`**. `Kernel::run()` returns one too, and
+`public/index.php` calls `send()` on it — that is the only place anything is written to the client. It also builds
+the `Services` the Kernel is given and loads the middleware list: `new Kernel($router, $services, $middleware)`.
+The framework does not go looking for any of it, so which `.env`, which log directory, which middleware and which
+connections are in play is answered by reading that one file.
+
+**Dependencies reach a Domain through its constructor, from the Action.** `App\Services` (`app/Services.php`) is a
+`final readonly` class listing what the application is made of. `Env` and `Log` are the two properties
+`ServicesInterface` requires, because the Kernel runs on them; everything else is the application's own. The Kernel
+constructs every Action with `($request, $services)`, and the Action passes its Domain the pieces it needs:
+`new IndexDomain($services->env)`. A Domain never takes the whole object and never calls `env()`. To add a
+database, add `public PDO $db` to `Services` and `db: new PDO(...)` to `public/index.php`; there is no container and
+nothing is resolved by name. `php tether inspect App\Services` lists what it provides.
+
+Route parameters arrive on the request: `$this->request->params['slug']`. Do not re-parse the URI.
+
+## Things that bite
+
+- **Routes are case-insensitive, but parameters are not normalised.** The Router compares segments with
+  `strcasecmp` and captures `{param}` segments verbatim, so `/posts/My-Slug` matches `/posts/{slug}` and
+  `params['slug']` is `My-Slug`. `Request::$uri` is never rewritten.
+- A **static route wins** over a dynamic route of the same shape, and a dynamic route only matches a URI with the
+  same number of `/`-separated segments.
+- `App\` → `app/` in `composer.json` is what makes `App\Services` autoload; without it every Action fails to
+  construct.
+- **The database is SQLite at `storage/notes.sqlite`**, or whatever `DB_DSN` says. `php tether db:schema` applies
+  `database/schema.sql`; the tests apply the same file to `sqlite::memory:` and never touch the disk.
+- Without the `Commands\` mapping, `Console::registerCommands()` cannot autoload generated commands and they vanish
+  from `php tether help` with no error at all.
+- **`tether` holds no console code.** The binary is `bin/tether` in `tetherphp-core`, which Composer proxies into
+  `vendor/bin/tether`; the file here only forwards to it. A change to how the console boots belongs in the framework
+  package, and the shim needs a core release that declares the `bin` before it can resolve.
+- `composer.lock` **is** committed — this is an application, not the template it came from.
+
+## Where a change belongs
+
+| Change                                                      | Repository        |
+| ------------------------------------------------------------ | ----------------- |
+| Actions, Domains, Responders, views, routes, assets, `.env`   | here              |
+| `App\Services` and what `public/index.php` builds into it     | here              |
+| Routing, request, session, CSRF, logging, console, stubs      | `tetherphp-core`  |
+| The console binary itself (`bin/tether`)                      | `tetherphp-core`  |
+
+Never patch `vendor/dillonsmart/tetherphp-core` — it is overwritten on the next install. A framework change goes to
+the `tetherphp-core` repository and arrives here as a release.
+
+## Keeping documentation current
+
+The guides in `docs/agents/` are part of the source, not documentation about it. When a change makes one of them
+inaccurate — a new `app/` directory and its PSR-4 mapping, a routing behaviour change, a different asset pipeline —
+update the guide in the **same commit** as the change, along with this file and `README.md` where they are affected.
+A guide that has drifted is worse than no guide.

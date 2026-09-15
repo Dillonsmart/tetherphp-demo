@@ -1,0 +1,18 @@
+.idea
+.DS_Store
+.env
+storage/private/*
+storage/logs/*
+!storage/private/.gitkeep
+!storage/logs/.gitkeep
+TODO.md
+vendor
+node_modules
+composer.local.json
+!composer.local.json.example
+composer.local.lock
+.phpunit.cache
+.phpunit.result.cache
+.claude/settings.json
+# the SQLite database lives here
+storage/*.sqlite

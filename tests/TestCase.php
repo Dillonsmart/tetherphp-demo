@@ -1,0 +1,167 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests;
+
+use App\Services;
+use PDO;
+use PHPUnit\Framework\TestCase as PHPUnitTestCase;
+use TetherPHP\framework\Http\Response;
+use TetherPHP\framework\Interfaces\MiddlewareInterface;
+use TetherPHP\framework\Modules\Env;
+use TetherPHP\framework\Modules\Log;
+use TetherPHP\Kernel;
+use TetherPHP\Router;
+
+/**
+ * A request sent through the real Kernel, with the real routes.
+ *
+ * The services — and the environment and log inside them — are built here
+ * rather than read from disk, so a test states the settings it depends on and
+ * never writes into storage/. That is only possible because the Kernel is
+ * handed them instead of finding them.
+ *
+ * No middleware is composed in by default, so writes are not CSRF-challenged
+ * and most tests stay a single call. Override middleware() to test against
+ * what the application actually boots with.
+ */
+abstract class TestCase extends PHPUnitTestCase
+{
+    protected Router $router;
+
+    /** One in-memory database per test, shared by every request the test sends. */
+    private ?PDO $db = null;
+
+    /** @var list<Kernel> */
+    private array $kernels = [];
+
+    protected function setUp(): void
+    {
+        $_SESSION = [];
+        $_POST = [];
+
+        $this->router = new Router();
+
+        (require __DIR__ . '/../routes/web.php')($this->router);
+    }
+
+    protected function tearDown(): void
+    {
+        // the Kernel installs error handlers; leaving them on would leak one
+        // pair per test into the rest of the suite. Last in, first out: a
+        // Kernel only takes its own handler off when it is the one on top,
+        // so a test that sent two requests must unwind them in reverse
+        foreach (array_reverse($this->kernels) as $kernel) {
+            $kernel->restoreErrorHandlers();
+        }
+
+        $this->kernels = [];
+        $this->db = null;
+    }
+
+    protected function get(string $uri): Response
+    {
+        return $this->send('GET', $uri);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    protected function post(string $uri, array $payload = []): Response
+    {
+        return $this->send('POST', $uri, $payload);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    protected function put(string $uri, array $payload = []): Response
+    {
+        return $this->send('PUT', $uri, $payload);
+    }
+
+    protected function delete(string $uri): Response
+    {
+        return $this->send('DELETE', $uri);
+    }
+
+    /**
+     * The Kernel reads $_POST wherever PHP would have filled it, whatever the
+     * verb, so a test hands a body over the same way a browser's form does.
+     * No middleware runs by default, so PUT and DELETE are sent as themselves
+     * rather than through the _method override.
+     *
+     * @param array<string, mixed> $payload
+     */
+    protected function send(string $method, string $uri, array $payload = []): Response
+    {
+        $_SERVER['REQUEST_METHOD'] = $method;
+        $_SERVER['REQUEST_URI'] = $uri;
+        $_POST = $payload;
+
+        $kernel = new Kernel($this->router, $this->services(), $this->middleware());
+
+        $this->kernels[] = $kernel;
+
+        return $kernel->run();
+    }
+
+    /**
+     * What runs around the request under test.
+     *
+     * Empty by default: a feature test that had to mint a CSRF token before it
+     * could POST would be testing the middleware rather than the feature. To
+     * exercise the real stack — in a test that is about the protection —
+     * override this with the application's own declaration:
+     *
+     *     protected function middleware(): array
+     *     {
+     *         return (require __DIR__ . '/../routes/middleware.php')($this->env(), $this->log());
+     *     }
+     *
+     * @return list<MiddlewareInterface>
+     */
+    protected function middleware(): array
+    {
+        return [];
+    }
+
+    protected function env(): Env
+    {
+        return new Env(['APP_NAME' => 'Notes', 'APP_DEBUG' => 'false']);
+    }
+
+    protected function log(): Log
+    {
+        return new Log(sys_get_temp_dir() . '/tetherphp-test-logs');
+    }
+
+    /**
+     * What the Actions under test are handed — the same class public/index.php
+     * builds, so a feature test runs the real wiring. Override it to hand a
+     * feature a fake in place of a real connection.
+     */
+    protected function services(): Services
+    {
+        return new Services(env: $this->env(), log: $this->log(), db: $this->db());
+    }
+
+    /**
+     * An in-memory SQLite with the real schema applied, built once per test so
+     * a note written by one request is there for the next. Nothing on disk is
+     * touched, and the schema file is the one db:schema applies.
+     */
+    protected function db(): PDO
+    {
+        if ($this->db === null) {
+            $this->db = new PDO('sqlite::memory:', options: [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]);
+            $this->db->exec((string) file_get_contents(__DIR__ . '/../database/schema.sql'));
+        }
+
+        return $this->db;
+    }
+}
