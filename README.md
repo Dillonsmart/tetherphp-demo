@@ -49,9 +49,12 @@ answer off the type: a `Written` is a 303 to the new note, an `Invalid` is the f
 and what was wrong with it, as a 422. There is no flash session, no redirect-back, no validator object — one result
 type per outcome, which is the same rule that makes a missing note a `404` rather than a `found` flag.
 
-**How much of it was generated.** `tether make:resource Note --uri=/notes` wrote 24 files and printed the seven
-route lines. What was written by hand is the SQL, the rules, the `Invalid` result, and the views. Run
-`php tether explain /notes/12` or `php tether context` to see the application describe itself.
+**How much of it was generated.** `tether make:resource Note --uri=/notes` wrote the Actions, Domains, Results,
+Responders and views and printed the seven route lines. What was written by hand is the SQL in `Notes`, the two
+rules in `Attributes`, and the views' markup. This application was built against core v0.11, before the generator
+wrote `Invalid`, `Attributes` or whole-page views; core v0.12.0 now generates all three in exactly this shape,
+because this is where the shape came from. Run `php tether explain /notes/12` or `php tether context` to see the
+application describe itself.
 
 ## Built in public
 

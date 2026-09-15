@@ -4,20 +4,20 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "aee9d971d4f18a6bc039ebfdb39d605f",
+    "content-hash": "d9fb9b9fade1374ef93848be14d215c4",
     "packages": [
         {
             "name": "dillonsmart/tetherphp-core",
-            "version": "v0.11.3",
+            "version": "v0.12.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/Dillonsmart/tetherphp-core.git",
-                "reference": "19748c039930068c9defb1f74dcbdf9c7f221df1"
+                "reference": "e1fbdc46127bfe32649cc1e2930df911e7b6c546"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Dillonsmart/tetherphp-core/zipball/19748c039930068c9defb1f74dcbdf9c7f221df1",
-                "reference": "19748c039930068c9defb1f74dcbdf9c7f221df1",
+                "url": "https://api.github.com/repos/Dillonsmart/tetherphp-core/zipball/e1fbdc46127bfe32649cc1e2930df911e7b6c546",
+                "reference": "e1fbdc46127bfe32649cc1e2930df911e7b6c546",
                 "shasum": ""
             },
             "require": {
@@ -51,9 +51,9 @@
             ],
             "support": {
                 "issues": "https://github.com/Dillonsmart/tetherphp-core/issues",
-                "source": "https://github.com/Dillonsmart/tetherphp-core/tree/v0.11.3"
+                "source": "https://github.com/Dillonsmart/tetherphp-core/tree/v0.12.0"
             },
-            "time": "2026-09-15T18:02:43+00:00"
+            "time": "2026-09-15T18:22:30+00:00"
         }
     ],
     "packages-dev": [
