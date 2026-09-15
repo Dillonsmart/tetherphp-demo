@@ -27,8 +27,8 @@ jobs:
 
       - name: Boot the application
         run: |
-          cp .env.example .env
-          printf 'APP_NAME=CI\nAPP_DEBUG=true\n' > .env
+          printf 'APP_NAME=CI\nAPP_DEBUG=true\nDB_DSN=\n' > .env
+          php tether db:schema
           php -S 127.0.0.1:8000 -t public &
           sleep 2
           # a 200 proves nothing on its own — the error view is served with a 200
@@ -40,6 +40,8 @@ jobs:
           fi
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/)" = "200"
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/does-not-exist)" = "404"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/notes/create)" = "200"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/notes/999)" = "404"
 
       - name: Tests
         run: php tether test
