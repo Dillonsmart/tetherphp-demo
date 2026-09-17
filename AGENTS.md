@@ -1,4 +1,4 @@
-# tetherphp-notes
+# tetherphp-demo
 
 A notes application built on TetherPHP, made with `composer create-project dillonsmart/tetherphp` and
 `tether make:resource Note --uri=/notes`. It exists to show a real feature — database, forms, validation — end to end.
