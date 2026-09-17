@@ -50,6 +50,7 @@ Requires **PHP >= 8.5**.
 ## Docker
 
 ```bash
+php tether db:schema          # the compose file bind-mounts this directory, so the database is the host's
 docker compose up --build     # http://localhost:8000
 ```
 

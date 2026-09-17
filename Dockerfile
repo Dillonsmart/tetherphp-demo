@@ -19,8 +19,9 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 WORKDIR /var/www/html
 
 # Dependencies first, so editing application code does not invalidate the layer.
-# The skeleton deliberately ships no composer.lock, so this resolves fresh.
-COPY composer.json ./
+# This is an application, not the template, so the lock is committed and the
+# image installs exactly what was tested.
+COPY composer.json composer.lock ./
 RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist --no-interaction
 
 COPY . .
@@ -30,6 +31,8 @@ RUN set -eux; \
     # Env::loadEnv() throws when .env is missing, so the container needs one to boot
     [ -f .env ] || cp .env.example .env; \
     mkdir -p storage/logs; \
+    # the image carries its own database, created from the committed schema
+    php tether db:schema; \
     chown -R www-data:www-data storage
 
 EXPOSE 80

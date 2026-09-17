@@ -8,9 +8,6 @@ storage/logs/*
 TODO.md
 vendor
 node_modules
-composer.local.json
-!composer.local.json.example
-composer.local.lock
 .phpunit.cache
 .phpunit.result.cache
 .claude/settings.json
